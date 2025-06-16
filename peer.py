@@ -5,42 +5,40 @@ import threading
 import random
 import time
 import sys
+from concurrent import futures
 
-# Endereço do servidor de descoberta
 DISCOVERY_SERVER_ADDRESS = 'localhost:50050'
 
-class Peer:
+# A classe Peer agora implementa o servicer PeerChatServicer
+class Peer(chat_pb2_grpc.PeerChatServicer):
     def __init__(self, username, port):
         self.username = username
         self.port = port
         self.address = f'localhost:{self.port}'
-        self.peers = {} # Dicionário para armazenar stubs de outros pares: {'username': stub}
+        self.peers = {}
 
-        # Inicia o servidor do próprio par em uma thread separada para escutar mensagens
         server_thread = threading.Thread(target=self._run_server, daemon=True)
         server_thread.start()
-        print(f"✅ Servidor do par {self.username} iniciado na porta {self.port}.")
+        print(f"Servidor do par {self.username} iniciado na porta {self.port}.")
 
-        # Registra-se no servidor de descoberta
         self._register_with_discovery_server()
 
-        # Inicia a thread que periodicamente atualiza a lista de pares
         update_thread = threading.Thread(target=self._update_peers_list, daemon=True)
         update_thread.start()
 
     def _run_server(self):
-        """Inicia o servidor gRPC do próprio par para receber mensagens."""
-        server = grpc.server(threading.BoundedThreadPool(max_workers=10))
-        chat_pb2_grpc.add_ChatServicer_to_server(self, server)
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+        # Adicionamos o servicer correto (PeerChat) ao servidor do par
+        chat_pb2_grpc.add_PeerChatServicer_to_server(self, server)
         server.add_insecure_port(self.address)
         server.start()
         server.wait_for_termination()
 
     def _register_with_discovery_server(self):
-        """Conecta-se ao servidor de descoberta e se registra."""
         try:
             with grpc.insecure_channel(DISCOVERY_SERVER_ADDRESS) as channel:
-                stub = chat_pb2_grpc.ChatStub(channel)
+                # Usamos o DiscoveryStub para falar com o servidor
+                stub = chat_pb2_grpc.DiscoveryStub(channel)
                 peer_info = chat_pb2.PeerInfo(username=self.username, address=self.address)
                 stub.Register(peer_info)
                 print(f"Registrado com sucesso no servidor de descoberta.")
@@ -48,39 +46,32 @@ class Peer:
             print(f"Erro ao conectar ao servidor de descoberta: {e.status().details}", file=sys.stderr)
             sys.exit(1)
 
-
     def _update_peers_list(self):
-        """Periodicamente busca a lista de pares do servidor de descoberta."""
         while True:
             try:
                 with grpc.insecure_channel(DISCOVERY_SERVER_ADDRESS) as channel:
-                    stub = chat_pb2_grpc.ChatStub(channel)
+                    # Usamos o DiscoveryStub para falar com o servidor
+                    stub = chat_pb2_grpc.DiscoveryStub(channel)
                     peer_list = stub.GetPeers(chat_pb2.Empty())
                     
                     current_peers = {}
                     for peer_info in peer_list.peers:
-                        if peer_info.address != self.address: # Não se conectar a si mesmo
+                        if peer_info.address != self.address:
                             current_peers[peer_info.username] = peer_info.address
                     
-                    # Simples atualização da lista de pares conhecidos
                     self.peers = current_peers
 
             except grpc.RpcError as e:
-                print(f"Não foi possível atualizar a lista de pares: {e.status().details}", file=sys.stderr)
+                print(f"Nao foi possivel atualizar a lista de pares: {e.status().details}", file=sys.stderr)
             
-            time.sleep(10) # Atualiza a lista a cada 10 segundos
+            time.sleep(10)
 
-
-    # --- Implementação do serviço gRPC (para atuar como servidor) ---
+    # Este é o único método que o servidor do par precisa implementar
     def SendMessage(self, request, context):
-        """Método chamado por outros pares para me enviar uma mensagem."""
-        print(f"\n [{request.author_username}]: {request.content}")
+        print(f"\n[{request.author_username}]: {request.content}")
         return chat_pb2.Empty()
 
-
-    # --- Lógica de cliente (para enviar mensagens) ---
     def start_chatting(self):
-        """Loop principal para enviar mensagens para todos os outros pares."""
         print("\nDigite sua mensagem e pressione Enter para enviar a todos.")
         print("Pressione Ctrl+C para sair.")
         try:
@@ -89,7 +80,6 @@ class Peer:
                 if content:
                     message = chat_pb2.ChatMessage(author_username=self.username, content=content)
                     
-                    # Itera sobre uma cópia para evitar problemas de concorrência com a thread de atualização
                     peers_to_send = self.peers.copy()
                     
                     if not peers_to_send:
@@ -99,13 +89,13 @@ class Peer:
                     for username, address in peers_to_send.items():
                         try:
                             with grpc.insecure_channel(address) as channel:
-                                stub = chat_pb2_grpc.ChatStub(channel)
+                                # Usamos o PeerChatStub para falar com outros pares
+                                stub = chat_pb2_grpc.PeerChatStub(channel)
                                 stub.SendMessage(message)
                         except grpc.RpcError:
                             print(f"Falha ao enviar mensagem para {username} @ {address}. O par pode estar offline.")
         except KeyboardInterrupt:
             print("\nSaindo do chat...")
-
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
@@ -113,7 +103,6 @@ if __name__ == '__main__':
         sys.exit(1)
         
     username = sys.argv[1]
-    # Usar uma porta aleatória para evitar conflitos ao rodar múltiplos pares na mesma máquina
     port = random.randint(50051, 50060) 
     
     peer = Peer(username, port)

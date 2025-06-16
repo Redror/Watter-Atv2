@@ -2,33 +2,34 @@ syntax = "proto3";
 
 package chat;
 
-// O serviço principal que será implementado pelo Servidor de Descoberta e pelos Pares.
-service Chat {
-    // Método para um par se registrar no servidor de descoberta.
+// Serviço para o Servidor de Descoberta
+service Discovery {
+    // Método para um par se registrar no servidor.
     rpc Register(PeerInfo) returns (Empty);
 
     // Método para obter a lista de todos os pares registrados.
     rpc GetPeers(Empty) returns (PeerList);
+}
 
+// Serviço para a comunicação direta entre Pares
+service PeerChat {
     // Método para um par enviar uma mensagem diretamente para outro par.
     rpc SendMessage(ChatMessage) returns (Empty);
 }
 
-// Mensagem vazia, usada onde não há necessidade de enviar dados.
+// --- Mensagens (continuam as mesmas) ---
+
 message Empty {}
 
-// Informações sobre um par (peer).
 message PeerInfo {
     string username = 1;
     string address = 2; // Ex: "localhost:50051"
 }
 
-// Lista de pares.
 message PeerList {
     repeated PeerInfo peers = 1;
 }
 
-// Representa uma única mensagem de chat.
 message ChatMessage {
     string author_username = 1;
     string content = 2;

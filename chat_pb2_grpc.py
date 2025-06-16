@@ -25,8 +25,8 @@ if _version_not_supported:
     )
 
 
-class ChatStub(object):
-    """O serviço principal que será implementado pelo Servidor de Descoberta e pelos Pares.
+class DiscoveryStub(object):
+    """Serviço para o Servidor de Descoberta
     """
 
     def __init__(self, channel):
@@ -36,28 +36,23 @@ class ChatStub(object):
             channel: A grpc.Channel.
         """
         self.Register = channel.unary_unary(
-                '/chat.Chat/Register',
+                '/chat.Discovery/Register',
                 request_serializer=chat__pb2.PeerInfo.SerializeToString,
                 response_deserializer=chat__pb2.Empty.FromString,
                 _registered_method=True)
         self.GetPeers = channel.unary_unary(
-                '/chat.Chat/GetPeers',
+                '/chat.Discovery/GetPeers',
                 request_serializer=chat__pb2.Empty.SerializeToString,
                 response_deserializer=chat__pb2.PeerList.FromString,
                 _registered_method=True)
-        self.SendMessage = channel.unary_unary(
-                '/chat.Chat/SendMessage',
-                request_serializer=chat__pb2.ChatMessage.SerializeToString,
-                response_deserializer=chat__pb2.Empty.FromString,
-                _registered_method=True)
 
 
-class ChatServicer(object):
-    """O serviço principal que será implementado pelo Servidor de Descoberta e pelos Pares.
+class DiscoveryServicer(object):
+    """Serviço para o Servidor de Descoberta
     """
 
     def Register(self, request, context):
-        """Método para um par se registrar no servidor de descoberta.
+        """Método para um par se registrar no servidor.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -70,15 +65,8 @@ class ChatServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def SendMessage(self, request, context):
-        """Método para um par enviar uma mensagem diretamente para outro par.
-        """
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
 
-
-def add_ChatServicer_to_server(servicer, server):
+def add_DiscoveryServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'Register': grpc.unary_unary_rpc_method_handler(
                     servicer.Register,
@@ -90,21 +78,16 @@ def add_ChatServicer_to_server(servicer, server):
                     request_deserializer=chat__pb2.Empty.FromString,
                     response_serializer=chat__pb2.PeerList.SerializeToString,
             ),
-            'SendMessage': grpc.unary_unary_rpc_method_handler(
-                    servicer.SendMessage,
-                    request_deserializer=chat__pb2.ChatMessage.FromString,
-                    response_serializer=chat__pb2.Empty.SerializeToString,
-            ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'chat.Chat', rpc_method_handlers)
+            'chat.Discovery', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('chat.Chat', rpc_method_handlers)
+    server.add_registered_method_handlers('chat.Discovery', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
-class Chat(object):
-    """O serviço principal que será implementado pelo Servidor de Descoberta e pelos Pares.
+class Discovery(object):
+    """Serviço para o Servidor de Descoberta
     """
 
     @staticmethod
@@ -121,7 +104,7 @@ class Chat(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/chat.Chat/Register',
+            '/chat.Discovery/Register',
             chat__pb2.PeerInfo.SerializeToString,
             chat__pb2.Empty.FromString,
             options,
@@ -148,7 +131,7 @@ class Chat(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/chat.Chat/GetPeers',
+            '/chat.Discovery/GetPeers',
             chat__pb2.Empty.SerializeToString,
             chat__pb2.PeerList.FromString,
             options,
@@ -160,6 +143,55 @@ class Chat(object):
             timeout,
             metadata,
             _registered_method=True)
+
+
+class PeerChatStub(object):
+    """Serviço para a comunicação direta entre Pares
+    """
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.SendMessage = channel.unary_unary(
+                '/chat.PeerChat/SendMessage',
+                request_serializer=chat__pb2.ChatMessage.SerializeToString,
+                response_deserializer=chat__pb2.Empty.FromString,
+                _registered_method=True)
+
+
+class PeerChatServicer(object):
+    """Serviço para a comunicação direta entre Pares
+    """
+
+    def SendMessage(self, request, context):
+        """Método para um par enviar uma mensagem diretamente para outro par.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_PeerChatServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'SendMessage': grpc.unary_unary_rpc_method_handler(
+                    servicer.SendMessage,
+                    request_deserializer=chat__pb2.ChatMessage.FromString,
+                    response_serializer=chat__pb2.Empty.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'chat.PeerChat', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('chat.PeerChat', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class PeerChat(object):
+    """Serviço para a comunicação direta entre Pares
+    """
 
     @staticmethod
     def SendMessage(request,
@@ -175,7 +207,7 @@ class Chat(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/chat.Chat/SendMessage',
+            '/chat.PeerChat/SendMessage',
             chat__pb2.ChatMessage.SerializeToString,
             chat__pb2.Empty.FromString,
             options,
